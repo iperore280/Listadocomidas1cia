@@ -1,0 +1,327 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Turnos · D/C/C (NFIL) · Export XLSX LibreOffice</title>
+<style>
+:root { --bg:#f7f7fb; --card:#fff; --text:#1f2937; --muted:#6b7280; --border:#e5e7eb; --primary:#2563eb; --danger:#ef4444; --mandatory:#e3f2fd; }
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+.container{max-width:1200px;margin:24px auto;padding:0 12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 6px 20px rgba(0,0,0,.06)}
+.header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:14px;border-bottom:1px solid var(--border)}
+h1{margin:0;font-size:18px}
+.controls button,.controls select{border:1px solid var(--border);background:#fff;border-radius:10px;padding:8px 10px;font-size:14px}
+.controls .primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.controls .danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+.subheader{padding:8px 14px;color:var(--muted);border-bottom:1px solid var(--border);font-size:13px}
+.table-wrap{overflow:auto;max-height:78vh}
+table{border-collapse:separate;border-spacing:0;min-width:900px;width:100%}
+th,td{border:1px solid var(--border);padding:8px;vertical-align:top}
+thead th{background:#fafafa;position:sticky;top:0;z-index:2}
+.sticky-left{position:sticky;left:0;background:#fff;z-index:3}
+.person-cell{min-width:260px;white-space:nowrap}
+.slot-cell{min-width:140px}
+.turnos{display:flex;flex-direction:column;gap:6px}
+.turno{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:8px}
+.turno.mandatory{background:var(--mandatory)}
+.checkbox{transform:scale(1.1)}
+.name{font-weight:600}
+.id{color:var(--muted);font-size:12px}
+.btn{cursor:pointer}
+.weekline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.range-pill{font-size:12px;color:#374151;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:#fff}
+@media print { .no-print{display:none !important} .card{box-shadow:none;border:none} body{background:#fff} }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <div class="header">
+      <h1>Turnos semanales · Desayuno / Comida / Cena (NFIL)</h1>
+      <div class="controls weekline">
+        <select id="weekSelect" title="Selecciona semana hasta fin de año"></select>
+        <span id="weekRange" class="range-pill">Semana (—)</span>
+        <button class="btn" id="btnSave">Guardar JSON</button>
+        <button class="btn" id="btnLoad">Cargar JSON</button>
+        <button class="btn" id="btnXLSX">Exportar Excel (LibreOffice)</button>
+        <button class="btn primary" onclick="window.print()">Imprimir / PDF</button>
+        <button class="btn danger" id="btnClear">Vaciar selecciones</button>
+      </div>
+    </div>
+    <div class="subheader">
+      <b>Reglas:</b> Desayunos (L–V) y Comidas (L–J) son <u>obligatorios</u> (bloqueados y marcados). Cenas y resto son opcionales.
+    </div>
+
+    <div class="table-wrap">
+      <table id="table">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// === Datos embebidos (NFIL 1132 excluido) ===
+const PARTICIPANTS = [{"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1101, "DNI": "77432302L", "APELLIDO1": "MATA", "APELLIDO2": "VELASCO", "NOMBRE": "MANUEL ALEJANDRO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1102, "DNI": "73602343C", "APELLIDO1": "OSES", "APELLIDO2": "PARDO", "NOMBRE": "JOAQUÍN"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1103, "DNI": "01191283K", "APELLIDO1": "PULIDO", "APELLIDO2": "PLAZA", "NOMBRE": "MARIO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1104, "DNI": "18077553J", "APELLIDO1": "GORDEJUELA", "APELLIDO2": "GARCÍA", "NOMBRE": "DAVID"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1105, "DNI": "49169343N", "APELLIDO1": "CASTAÑO", "APELLIDO2": "ILLÁN", "NOMBRE": "PEDRO JAVIER"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1106, "DNI": "20618880R", "APELLIDO1": "POZO", "APELLIDO2": "CRESPO", "NOMBRE": "FERNANDO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1107, "DNI": "49508736V", "APELLIDO1": "MUÑOZ", "APELLIDO2": "VERDUGO", "NOMBRE": "VÍCTOR"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1108, "DNI": "04256229X", "APELLIDO1": "ABOIN", "APELLIDO2": "ARROYO", "NOMBRE": "JAVIER"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1109, "DNI": "04861759L", "APELLIDO1": "CASTILLA", "APELLIDO2": "FLECHILLAS", "NOMBRE": "DAVID"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1110, "DNI": "45770560P", "APELLIDO1": "RODRÍGUEZ", "APELLIDO2": "GARCÍA", "NOMBRE": "JOSÉ MANUEL"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1111, "DNI": "52909266C", "APELLIDO1": "SANCHEZ", "APELLIDO2": "BERZAL", "NOMBRE": "GONZALO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1112, "DNI": "79094904C", "APELLIDO1": "SÁNCHEZ", "APELLIDO2": "SILVA", "NOMBRE": "HUGO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1113, "DNI": "29540999Y", "APELLIDO1": "VELASCO", "APELLIDO2": "CARBALLIDO", "NOMBRE": "CLARA"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1114, "DNI": "02796807F", "APELLIDO1": "AGUADO", "APELLIDO2": "PAREDES", "NOMBRE": "ICIAR"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1115, "DNI": "04628628Q", "APELLIDO1": "HERRANZ", "APELLIDO2": "PÉREZ", "NOMBRE": "ARTURO MEDIR"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1116, "DNI": "42247509M", "APELLIDO1": "VALENTÍN", "APELLIDO2": "QUINTANA", "NOMBRE": "ADRIÁN"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1117, "DNI": "25359380V", "APELLIDO1": "LAPEÑA", "APELLIDO2": "ESTEBAN", "NOMBRE": "ALEJANDRO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1118, "DNI": "45320564F", "APELLIDO1": "PANCHO", "APELLIDO2": "MARTÍN", "NOMBRE": "KEVIN"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1119, "DNI": "73624883C", "APELLIDO1": "IGEA", "APELLIDO2": "BRUCH", "NOMBRE": "RAÚL"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1120, "DNI": "80088527C", "APELLIDO1": "PILAO", "APELLIDO2": "CARBALLO", "NOMBRE": "ALEJANDRO MANUEL"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1121, "DNI": "70593180Q", "APELLIDO1": "RODRÍGUEZ", "APELLIDO2": "SÁNCHEZ", "NOMBRE": "EDUARDO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1122, "DNI": "78307588V", "APELLIDO1": "BENJELLOUN ANDALOUSSI", "APELLIDO2": "HSSEIN", "NOMBRE": "MOHAMED"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1123, "DNI": "58460145X", "APELLIDO1": "ZAFRA", "APELLIDO2": "BUGALLO", "NOMBRE": "SILVIA"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1124, "DNI": "77216769L", "APELLIDO1": "PLAZA", "APELLIDO2": "RAMOS", "NOMBRE": "AITOR"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1125, "DNI": "20090258B", "APELLIDO1": "MARTÍNEZ", "APELLIDO2": "PENCO", "NOMBRE": "ÁNGEL"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1126, "DNI": "35592274G", "APELLIDO1": "FERNÁNDEZ", "APELLIDO2": "OTERO", "NOMBRE": "JAIRO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1127, "DNI": "71483017Y", "APELLIDO1": "NÚÑEZ", "APELLIDO2": "MARTÍN", "NOMBRE": "ROBERTO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1128, "DNI": "71293388N", "APELLIDO1": "MIRAMBELL", "APELLIDO2": "DE AREBA", "NOMBRE": "CARLOS ENRIQUE"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1129, "DNI": "25618725Z", "APELLIDO1": "BILBAO", "APELLIDO2": "DOMÍNGUEZ", "NOMBRE": "JAVIER"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1130, "DNI": "54298926C", "APELLIDO1": "HIDALGO", "APELLIDO2": "BULDÓN", "NOMBRE": "ALEJANDRO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1131, "DNI": "51703583C", "APELLIDO1": "MORALES", "APELLIDO2": "PÉREZ", "NOMBRE": "VÍCTOR"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1133, "DNI": "17461021L", "APELLIDO1": "SÁNCHEZ", "APELLIDO2": "SÁNCHEZ", "NOMBRE": "FRANCISCO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1134, "DNI": "18174347T", "APELLIDO1": "PÉREZ DEL PALOMAR", "APELLIDO2": "OREJA", "NOMBRE": "ÍÑIGO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1135, "DNI": "48412007C", "APELLIDO1": "PÉREZ", "APELLIDO2": "BATALLER", "NOMBRE": "RAÚL"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1136, "DNI": "02775212D", "APELLIDO1": "TORIJA", "APELLIDO2": "MUÑOZ", "NOMBRE": "ROCÍO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1137, "DNI": "71368387P", "APELLIDO1": "LÓPEZ TELLO", "APELLIDO2": "MARÍN", "NOMBRE": "VÍCTOR"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1138, "DNI": "54258417Z", "APELLIDO1": "CASTELLANO", "APELLIDO2": "ALCEDO", "NOMBRE": "JACOB"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1139, "DNI": "45121335G", "APELLIDO1": "OLIVA", "APELLIDO2": "AHUMADA", "NOMBRE": "DANIELA"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1140, "DNI": "18101164A", "APELLIDO1": "IRZO", "APELLIDO2": "DELGADO", "NOMBRE": "JULIO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1141, "DNI": "73621326M", "APELLIDO1": "PEÑA", "APELLIDO2": "LAFUENTE", "NOMBRE": "ALEJANDRO"}, {"COMPANIA": "1ª", "SECCION": "11.0", "NFIL": 1142, "DNI": "78162216M", "APELLIDO1": "DE LA TORRE", "APELLIDO2": "MARTÍNEZ", "NOMBRE": "ALEJANDRO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1201, "DNI": "77417726W", "APELLIDO1": "INSUA", "APELLIDO2": "VIDAL", "NOMBRE": "ÁLVARO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1202, "DNI": "07051677S", "APELLIDO1": "RASERO", "APELLIDO2": "TEODOSO", "NOMBRE": "ÁNGEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1203, "DNI": "45115843D", "APELLIDO1": "ETTOUYYIR", "APELLIDO2": "MOHAMED", "NOMBRE": "MOHAMED IBRAHIM"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1204, "DNI": "21006364G", "APELLIDO1": "BERRECOSA", "APELLIDO2": "DÍAZ", "NOMBRE": "CÉSAR"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1205, "DNI": "76058463Q", "APELLIDO1": "POLO", "APELLIDO2": "MAÑANAS", "NOMBRE": "RAÚL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1206, "DNI": "70916454W", "APELLIDO1": "MONSALVO", "APELLIDO2": "SÁNCHEZ", "NOMBRE": "IZAN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1207, "DNI": "77159069A", "APELLIDO1": "VILLEGAS", "APELLIDO2": "CASADO", "NOMBRE": "LAURA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1208, "DNI": "09249656E", "APELLIDO1": "FLORIDO", "APELLIDO2": "VEGA", "NOMBRE": "MANUEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1209, "DNI": "49446043E", "APELLIDO1": "MOMPEAN", "APELLIDO2": "FORCA", "NOMBRE": "ENRIQUE"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1210, "DNI": "32731015Z", "APELLIDO1": "ROJAS", "APELLIDO2": "GARCÍA", "NOMBRE": "FERNANDO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1211, "DNI": "71312355G", "APELLIDO1": "GONZÁLEZ", "APELLIDO2": "MIER", "NOMBRE": "ÁLVARO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1212, "DNI": "70907765F", "APELLIDO1": "SIERRA", "APELLIDO2": "MARTÍN", "NOMBRE": "ANDER"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1213, "DNI": "49099978S", "APELLIDO1": "MARTÍN", "APELLIDO2": "RODRÍGUEZ", "NOMBRE": "GEMA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1214, "DNI": "34296725E", "APELLIDO1": "TAMARGO", "APELLIDO2": "GARCÍA", "NOMBRE": "MOISÉS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1215, "DNI": "49508761L", "APELLIDO1": "RODRÍGUEZ", "APELLIDO2": "ESTÉVEZ", "NOMBRE": "RAFAEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1216, "DNI": "80167642S", "APELLIDO1": "MORALES", "APELLIDO2": "CARDOSO", "NOMBRE": "SAMUEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1217, "DNI": "46268268L", "APELLIDO1": "CANTARERO", "APELLIDO2": "RAMIRO", "NOMBRE": "FRANCISCO JAVIER"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1218, "DNI": "53739806F", "APELLIDO1": "PAREDES", "APELLIDO2": "CARMONA", "NOMBRE": "FRANCISCO JAVIER"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1219, "DNI": "26526420Z", "APELLIDO1": "PADILLA", "APELLIDO2": "SANTIAGO", "NOMBRE": "MARÍA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1220, "DNI": "77694775Q", "APELLIDO1": "GARCÍA", "APELLIDO2": "GONZÁLEZ", "NOMBRE": "DANIEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1221, "DNI": "49507833B", "APELLIDO1": "CABELLO", "APELLIDO2": "FLORES", "NOMBRE": "JAVIER"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1222, "DNI": "48411347G", "APELLIDO1": "GARCÍA", "APELLIDO2": "PASCUAL", "NOMBRE": "JORGE"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1223, "DNI": "49569822S", "APELLIDO1": "ROBLES", "APELLIDO2": "RAMÍREZ", "NOMBRE": "PEDRO JOSÉ"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1224, "DNI": "49834945V", "APELLIDO1": "LOZANO", "APELLIDO2": "ALONSO", "NOMBRE": "DANIEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1225, "DNI": "75936254Y", "APELLIDO1": "GARCÍA", "APELLIDO2": "RAMÍREZ", "NOMBRE": "JESÚS ISMAEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1226, "DNI": "48782909R", "APELLIDO1": "MARTÍNEZ", "APELLIDO2": "TORTOSA", "NOMBRE": "JAVIER"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1227, "DNI": "54049498G", "APELLIDO1": "ALVARADO", "APELLIDO2": "CRUZ", "NOMBRE": "JOEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1228, "DNI": "02594173A", "APELLIDO1": "QUINTANILLA", "APELLIDO2": "CHAMÓN", "NOMBRE": "FRANCISCO JOSÉ"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1229, "DNI": "41541876N", "APELLIDO1": "DÍAZ", "APELLIDO2": "CARRETERO", "NOMBRE": "MARÍA DEL MAR"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1230, "DNI": "48758641K", "APELLIDO1": "BLÁZQUEZ", "APELLIDO2": "MARTÍNEZ", "NOMBRE": "JUAN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1231, "DNI": "21068865Z", "APELLIDO1": "MORENO", "APELLIDO2": "YELO", "NOMBRE": "IGNACIO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1232, "DNI": "32057526B", "APELLIDO1": "CRUZ", "APELLIDO2": "MARTÍNEZ", "NOMBRE": "JESÚS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1233, "DNI": "06632458V", "APELLIDO1": "SERVERT", "APELLIDO2": "HERNÁNDEZ", "NOMBRE": "MIGUEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1234, "DNI": "31888048C", "APELLIDO1": "LUCAS", "APELLIDO2": "MATA", "NOMBRE": "RAFAEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1235, "DNI": "48700699Q", "APELLIDO1": "MARTÍNEZ", "APELLIDO2": "TUDELA", "NOMBRE": "ALEJANDRO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1236, "DNI": "77039424G", "APELLIDO1": "BALLESTER", "APELLIDO2": "FULLEDA", "NOMBRE": "GADEA MARÍA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1237, "DNI": "48756133C", "APELLIDO1": "ITURGAIZ", "APELLIDO2": "GÓMEZ", "NOMBRE": "CARLOS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1238, "DNI": "23956073D", "APELLIDO1": "ERICES", "APELLIDO2": "GUERRERO", "NOMBRE": "VÍCTOR MANUEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1239, "DNI": "77225130P", "APELLIDO1": "JIMÉNEZ", "APELLIDO2": "SEGALERVA", "NOMBRE": "JOSÉ MARÍA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1240, "DNI": "49506110J", "APELLIDO1": "REYES", "APELLIDO2": "LÓPEZ", "NOMBRE": "PEDRO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1241, "DNI": "17460314W", "APELLIDO1": "SALIDO", "APELLIDO2": "GARCÍA", "NOMBRE": "DIEGO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1242, "DNI": "31032944X", "APELLIDO1": "RAFAEL", "APELLIDO2": "CRUZ", "NOMBRE": "CRUZ"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1301, "DNI": "17769550A", "APELLIDO1": "GRAO", "APELLIDO2": "SÁNCHEZ", "NOMBRE": "GABRIEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1302, "DNI": "45323601P", "APELLIDO1": "FERNÁNDEZ", "APELLIDO2": "NÚÑEZ", "NOMBRE": "JESÚS MARÍA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1303, "DNI": "47471071Z", "APELLIDO1": "JIMÉNEZ", "APELLIDO2": "EGIDO", "NOMBRE": "VERA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1304, "DNI": "26281780W", "APELLIDO1": "ARRUGA", "APELLIDO2": "ASENSIO", "NOMBRE": "ÁLVARO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1305, "DNI": "51499173B", "APELLIDO1": "AGUADO", "APELLIDO2": "SANTOS", "NOMBRE": "CARLOS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1306, "DNI": "73624621B", "APELLIDO1": "BELLIDO", "APELLIDO2": "SÁNCHEZ", "NOMBRE": "IZAN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1307, "DNI": "31018987Z", "APELLIDO1": "MADRID", "APELLIDO2": "ALBORNOZ", "NOMBRE": "PATRICIO JOSÉ"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1308, "DNI": "77545102G", "APELLIDO1": "SILVOSO", "APELLIDO2": "PÉREZ", "NOMBRE": "XOAN CARLOS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1309, "DNI": "02332331Q", "APELLIDO1": "PÉREZ", "APELLIDO2": "CEBADERA", "NOMBRE": "ALBERTO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1310, "DNI": "32909309N", "APELLIDO1": "GARCÍA-MORALES", "APELLIDO2": "ESCRIBANO", "NOMBRE": "PABLO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1311, "DNI": "79213955T", "APELLIDO1": "GONZÁLEZ", "APELLIDO2": "AGUILAR", "NOMBRE": "JESÚS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1312, "DNI": "77237912W", "APELLIDO1": "LLORENTE", "APELLIDO2": "GALICIA", "NOMBRE": "FRANCISCO JUAN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1313, "DNI": "45361587K", "APELLIDO1": "RODRÍGUEZ", "APELLIDO2": "SÁNCHEZ", "NOMBRE": "FRANCISCO JAVIER"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1314, "DNI": "80239508Y", "APELLIDO1": "PARRA", "APELLIDO2": "TORRES", "NOMBRE": "JONATAN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1315, "DNI": "51183002K", "APELLIDO1": "GONZÁLEZ", "APELLIDO2": "MORENO", "NOMBRE": "PABLO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1316, "DNI": "53721944Q", "APELLIDO1": "VILLAESCUSA", "APELLIDO2": "DELGADO", "NOMBRE": "IVÁN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1317, "DNI": "49273427K", "APELLIDO1": "CUEVAS", "APELLIDO2": "ESPINOSA", "NOMBRE": "MIGUEL ÁNGEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1318, "DNI": "71471125M", "APELLIDO1": "GARCÍA", "APELLIDO2": "ALLER", "NOMBRE": "MANUEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1319, "DNI": "45111033Y", "APELLIDO1": "MOHAMED", "APELLIDO2": "MOHAMED", "NOMBRE": "MONSEF"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1320, "DNI": "42217505Q", "APELLIDO1": "CAZORLA", "APELLIDO2": "ORTIZ", "NOMBRE": "FRANCISCO JAVIER"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1321, "DNI": "77561445V", "APELLIDO1": "MALDONADO", "APELLIDO2": "BENÍTEZ", "NOMBRE": "LUIS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1322, "DNI": "09816953R", "APELLIDO1": "PATON", "APELLIDO2": "RODRÍGUEZ", "NOMBRE": "ALBERTO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1323, "DNI": "25604607H", "APELLIDO1": "SANTAMARÍA", "APELLIDO2": "MERINO", "NOMBRE": "SERGIO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1324, "DNI": "26324982X", "APELLIDO1": "OCÓN", "APELLIDO2": "RODRÍGUEZ", "NOMBRE": "PEDRO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1325, "DNI": "17490379Y", "APELLIDO1": "PINEDA", "APELLIDO2": "LARA", "NOMBRE": "SAMUEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1326, "DNI": "79033723L", "APELLIDO1": "JAÉN", "APELLIDO2": "MERINO", "NOMBRE": "ANTONIO JESÚS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1327, "DNI": "70971192T", "APELLIDO1": "OSPINA", "APELLIDO2": "MUÑOZ", "NOMBRE": "JUAN DAVID"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1328, "DNI": "71746504M", "APELLIDO1": "GARCÍA", "APELLIDO2": "SÁNCHEZ", "NOMBRE": "CRISTIAN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1329, "DNI": "71027472E", "APELLIDO1": "ARGUELLO", "APELLIDO2": "CALVO", "NOMBRE": "ADRIÁN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1330, "DNI": "26518250D", "APELLIDO1": "FERNÁNDEZ", "APELLIDO2": "LÓPEZ", "NOMBRE": "GONZALO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1331, "DNI": "53748988N", "APELLIDO1": "TERRAZAS", "APELLIDO2": "GONZÁLEZ", "NOMBRE": "MARC JORDI"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1332, "DNI": "26496492D", "APELLIDO1": "MEDINA", "APELLIDO2": "RIMÓN", "NOMBRE": "INMACULADA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1333, "DNI": "70914476W", "APELLIDO1": "RUIZ", "APELLIDO2": "DÍAZ", "NOMBRE": "SERGIO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1334, "DNI": "53879435A", "APELLIDO1": "GUAMAN", "APELLIDO2": "ZÚÑIGA", "NOMBRE": "CRISTHIAN DAVID"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1335, "DNI": "nan", "APELLIDO1": "nan", "APELLIDO2": "nan", "NOMBRE": "nan"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1336, "DNI": "49525643L", "APELLIDO1": "NAVARRO", "APELLIDO2": "MARTÍNEZ", "NOMBRE": "ÁLVARO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1337, "DNI": "45324942S", "APELLIDO1": "MONTILLA", "APELLIDO2": "AMADOR", "NOMBRE": "ANTONIO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1338, "DNI": "49197325A", "APELLIDO1": "LATORRE", "APELLIDO2": "MARTÍNEZ", "NOMBRE": "JORGE"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1339, "DNI": "80236199D", "APELLIDO1": "RODRÍGUEZ", "APELLIDO2": "RODRÍGUEZ", "NOMBRE": "BORJA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1340, "DNI": "71564878X", "APELLIDO1": "PARRA", "APELLIDO2": "FERNÁNDEZ", "NOMBRE": "ÁLVARO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1341, "DNI": "71714534M", "APELLIDO1": "MEDINA", "APELLIDO2": "LIÉBANA", "NOMBRE": "OLAIA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1401, "DNI": "77387718D", "APELLIDO1": "COBIÁN", "APELLIDO2": "ÁVILA", "NOMBRE": "CARLOS MANUEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1402, "DNI": "77482522F", "APELLIDO1": "MAQUIEIRA", "APELLIDO2": "FERNÁNDEZ", "NOMBRE": "JESÚS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1403, "DNI": "35598323G", "APELLIDO1": "BLANCO", "APELLIDO2": "RECOUSO", "NOMBRE": "SOFÍA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1404, "DNI": "31893382H", "APELLIDO1": "CABALLERO", "APELLIDO2": "LOZANO", "NOMBRE": "PABLO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1405, "DNI": "77432780Z", "APELLIDO1": "JIMÉNEZ", "APELLIDO2": "ARAQUE", "NOMBRE": "FÁTIMA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1406, "DNI": "53985559M", "APELLIDO1": "BRAVO", "APELLIDO2": "BARRASA", "NOMBRE": "JORGE"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1407, "DNI": "26827022Y", "APELLIDO1": "DOVAL", "APELLIDO2": "CAMACHO", "NOMBRE": "ADRIÁN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1408, "DNI": "33560827D", "APELLIDO1": "CARBONELL", "APELLIDO2": "SOBRADO", "NOMBRE": "IGNACIO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1409, "DNI": "31030394J", "APELLIDO1": "LUQUE", "APELLIDO2": "ORTIZ", "NOMBRE": "ALEJANDRO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1410, "DNI": "23848809V", "APELLIDO1": "JARA", "APELLIDO2": "BUSTO", "NOMBRE": "JORGE"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1411, "DNI": "44249492E", "APELLIDO1": "DOMÍNGUEZ", "APELLIDO2": "AGUIRRE", "NOMBRE": "JESÚS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1412, "DNI": "70909900A", "APELLIDO1": "GALLEGO", "APELLIDO2": "VICENTE", "NOMBRE": "DAVID"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1413, "DNI": "20616142T", "APELLIDO1": "GARCÍA CONSUEGRA", "APELLIDO2": "RODRÍGUEZ PORTUGUÉS", "NOMBRE": "CARLOS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1414, "DNI": "08890277H", "APELLIDO1": "ORTIZ", "APELLIDO2": "NOGALES", "NOMBRE": "BALTASAR"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1415, "DNI": "72359715J", "APELLIDO1": "LAVIN", "APELLIDO2": "ARGOS", "NOMBRE": "JAIME"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1416, "DNI": "25615659F", "APELLIDO1": "RUIZ", "APELLIDO2": "SAEZ", "NOMBRE": "VÍCTOR"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1417, "DNI": "29567647C", "APELLIDO1": "FERNÁNDEZ", "APELLIDO2": "GARCÍA", "NOMBRE": "MARCO ANTONIO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1418, "DNI": "45130729Z", "APELLIDO1": "RECUERO", "APELLIDO2": "FERNÁNDEZ", "NOMBRE": "ÁLVARO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1419, "DNI": "49176390K", "APELLIDO1": "GARCÍA", "APELLIDO2": "BASTIDA", "NOMBRE": "MATEO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1420, "DNI": "01939876X", "APELLIDO1": "GARCÍA", "APELLIDO2": "PÉREZ", "NOMBRE": "JORGE"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1421, "DNI": "03961571M", "APELLIDO1": "POMARES", "APELLIDO2": "ESCUDERO", "NOMBRE": "ÁNGEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1422, "DNI": "54160340D", "APELLIDO1": "RODRÍGUEZ", "APELLIDO2": "TEJERA", "NOMBRE": "LUIS ÁNGEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1423, "DNI": "45364479S", "APELLIDO1": "BATISTA", "APELLIDO2": "ORTEGA", "NOMBRE": "JUAN MANUEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1424, "DNI": "51202232T", "APELLIDO1": "PACHECO", "APELLIDO2": "RIVEROL", "NOMBRE": "SARA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1425, "DNI": "77497489R", "APELLIDO1": "BALLESTEROS", "APELLIDO2": "SERRANO", "NOMBRE": "DAVID"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1426, "DNI": "18078806R", "APELLIDO1": "BARTIVAS", "APELLIDO2": "ORAA", "NOMBRE": "HUGO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1427, "DNI": "06031227Y", "APELLIDO1": "GILARANZA", "APELLIDO2": "ESTÉVEZ", "NOMBRE": "ESTEBAN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1428, "DNI": "77238459C", "APELLIDO1": "AMORES", "APELLIDO2": "SÁNCHEZ", "NOMBRE": "JOSÉ MARÍA"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1429, "DNI": "05728266R", "APELLIDO1": "UREÑA", "APELLIDO2": "BAOS", "NOMBRE": "MANUEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1430, "DNI": "31874245V", "APELLIDO1": "LÓPEZ", "APELLIDO2": "SÁNCHEZ", "NOMBRE": "CRISTHIAN ANDRES"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1431, "DNI": "49702849X", "APELLIDO1": "RUBIO", "APELLIDO2": "RODRÍGUEZ", "NOMBRE": "DANIEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1432, "DNI": "51256707B", "APELLIDO1": "GONZÁLEZ", "APELLIDO2": "CALDERÓN", "NOMBRE": "SEBASTIÁN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1433, "DNI": "54164339Y", "APELLIDO1": "ROCHA", "APELLIDO2": "PLACERES", "NOMBRE": "YAZAEL JESÚS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1434, "DNI": "54139285E", "APELLIDO1": "AGUILAR", "APELLIDO2": "GALDEANO", "NOMBRE": "FACUNDO ADRIÁN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1435, "DNI": "70656763G", "APELLIDO1": "ÁLVAREZ", "APELLIDO2": "ROUCO", "NOMBRE": "GERMÁN MATÍAS"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1436, "DNI": "32922596M", "APELLIDO1": "RODRÍGUEZ", "APELLIDO2": "MIER-TERAN", "NOMBRE": "BELTRÁN"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1437, "DNI": "54270502R", "APELLIDO1": "RACHAS", "APELLIDO2": "QUEVEDO", "NOMBRE": "ÁLVARO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1438, "DNI": "42272870C", "APELLIDO1": "MEDINA", "APELLIDO2": "DEL ROSARIO", "NOMBRE": "GADIEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1439, "DNI": "71757339F", "APELLIDO1": "ATAPUERCA", "APELLIDO2": "MOYA", "NOMBRE": "RODRIGO"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1440, "DNI": "80108228X", "APELLIDO1": "PATO", "APELLIDO2": "FERNÁNDEZ", "NOMBRE": "MANUEL"}, {"COMPANIA": "1ª", "SECCION": "nan", "NFIL": 1441, "DNI": "49789867L", "APELLIDO1": "MARÍN", "APELLIDO2": "BARRAL", "NOMBRE": "MANUEL"}];
+
+// === Constantes y utilidades ===
+const DAYS = ["LUNES","MARTES","MIÉRCOLES","JUEVES","VIERNES","SÁBADO","DOMINGO"];
+const MEALS = ["DES","COM","CEN"];
+const MONTHS_ABBR = ["ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"];
+const MONTHS_FULL = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const LS_KEY = "turnos_con_nfil_export_xlsx_lo_weekly_v2";
+
+// === Fechas (evitar desfases de huso) ===
+function makeDate(y,m,d){ return new Date(y, m, d); } // m es 0-11
+function parseYMDLocal(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y, m-1, d); }
+function ymdLocal(d){ const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const day=String(d.getDate()).padStart(2,'0'); return y+"-"+m+"-"+day; }
+function toMonday(date){ const d=makeDate(date.getFullYear(), date.getMonth(), date.getDate()); const w=(d.getDay()+6)%7; d.setDate(d.getDate()-w); return d; }
+function fmtDateExcelLike(d){ const dd=String(d.getDate()).padStart(2,"0"); const mon=MONTHS_ABBR[d.getMonth()]; return "(" + dd + mon + ")"; }
+function fmtRangeLong(monday){
+  const start = new Date(monday);
+  const end = new Date(monday); end.setDate(end.getDate()+6);
+  const s = start.getDate() + " de " + MONTHS_FULL[start.getMonth()];
+  const e = end.getDate() + " de " + MONTHS_FULL[end.getMonth()];
+  return "Semana (" + s + " al " + e + ")";
+}
+function fmtRangeLabel(monday){
+  const start = new Date(monday);
+  const end = new Date(monday); end.setDate(end.getDate()+6);
+  const s = start.getDate() + " de " + MONTHS_FULL[start.getMonth()];
+  const e = end.getDate() + " de " + MONTHS_FULL[end.getMonth()];
+  return s + " al " + e;
+}
+
+// === Estado por semana (cada semana independiente) ===
+function weekKey(weekStart){ return LS_KEY + ":" + weekStart; }
+function defaultMarks(){
+  const m=[Array(7).fill(false),Array(7).fill(false),Array(7).fill(false)];
+  for(let d=0; d<=4; d++) m[0][d]=true; // DES L-V
+  for(let d=0; d<=3; d++) m[1][d]=true; // COM L-J
+  return m;
+}
+function defaultWeekData(){ return PARTICIPANTS.map(p => ({ ...p, marks: defaultMarks() })); }
+function loadWeekData(weekStart){
+  try{
+    const raw = localStorage.getItem(weekKey(weekStart));
+    if (!raw) return defaultWeekData();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : defaultWeekData();
+  }catch(_){ return defaultWeekData(); }
+}
+function saveWeekData(weekStart, data){ try{ localStorage.setItem(weekKey(weekStart), JSON.stringify(data)); }catch(_){ } }
+
+let state = { weekStart: "", data: [] };
+
+// === UI ===
+function buildWeekOptions(baseMonday){
+  const select = document.getElementById("weekSelect");
+  select.innerHTML = "";
+  // desde semana actual hasta fin de año del base
+  const start = toMonday(new Date());
+  const endYear = new Date(baseMonday.getFullYear(), 11, 31);
+  for(let d=new Date(start); d <= endYear; d.setDate(d.getDate()+7)){
+    const opt = document.createElement("option");
+    opt.value = ymdLocal(d);
+    opt.textContent = "Semana (" + fmtRangeLabel(d) + ")";
+    select.appendChild(opt);
+  }
+  // seleccionar baseMonday si existe
+  const tryVal = ymdLocal(baseMonday);
+  const exists = Array.from(select.options).some(o => o.value === tryVal);
+  select.value = exists ? tryVal : select.options[0]?.value;
+}
+
+function buildHead(){
+  const thead = document.getElementById("thead");
+  thead.innerHTML = "";
+  const monday = parseYMDLocal(state.weekStart);
+
+  document.getElementById("weekRange").textContent = fmtRangeLong(monday);
+  buildWeekOptions(monday);
+
+  const r1 = document.createElement("tr");
+  const thInfo = document.createElement("th"); thInfo.className="sticky-left person-cell"; thInfo.textContent="NFIL · Nombre"; r1.appendChild(thInfo);
+  const thWeek = document.createElement("th"); thWeek.colSpan=7; thWeek.textContent = "Semana (" + fmtRangeLabel(monday) + ")"; r1.appendChild(thWeek);
+  thead.appendChild(r1);
+
+  const r2 = document.createElement("tr");
+  const thTurnos = document.createElement("th"); thTurnos.className="sticky-left person-cell"; thTurnos.textContent="Turnos"; r2.appendChild(thTurnos);
+  for(let i=0;i<7;i++){ const d=makeDate(monday.getFullYear(), monday.getMonth(), monday.getDate()+i); const th=document.createElement("th"); th.textContent = DAYS[i] + ", " + fmtDateExcelLike(d); r2.appendChild(th); }
+  thead.appendChild(r2);
+}
+
+function buildBody(){
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+  state.data.forEach((p) => {
+    const tr = document.createElement("tr");
+    const th = document.createElement("th"); th.className="sticky-left person-cell";
+    const nombreCompleto = [p.APELLIDO1||"", p.APELLIDO2||"", p.NOMBRE||""].filter(Boolean).join(" ");
+    th.innerHTML = "<div class='name'>" + nombreCompleto + "</div><div class='id'>NFIL " + p.NFIL + "</div>";
+    tr.appendChild(th);
+
+    for (let d=0; d<7; d++){
+      const td = document.createElement("td"); td.className="slot-cell";
+      const wrap = document.createElement("div"); wrap.className="turnos";
+      ["DES","COM","CEN"].forEach((label, mi) => {
+        const mandatory = (mi===0 && d<=4) || (mi===1 && d<=3);
+        const row = document.createElement("div"); row.className = "turno" + (mandatory ? " mandatory" : "");
+        const cb = document.createElement("input"); cb.type="checkbox"; cb.className="checkbox"; cb.checked = !!p.marks[mi][d]; cb.disabled = mandatory;
+        cb.addEventListener("change", ()=>{ p.marks[mi][d] = cb.checked; saveWeekData(state.weekStart, state.data); });
+        const txt = document.createElement("span"); txt.textContent = label;
+        row.appendChild(cb); row.appendChild(txt);
+        wrap.appendChild(row);
+      });
+      td.appendChild(wrap);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+// === Export XLSX (igual plantilla) ===
+function crc32(buf){ let table=crc32.table; if(!table){ table=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=((c&1)?(0xEDB88320^(c>>>1)):(c>>>1)); table[n]=c>>>0; } crc32.table=table; } let c=0^0xFFFFFFFF; for(let i=0;i<buf.length;i++) c=table[(c^buf[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function strToU8(s){ return new TextEncoder().encode(s); }
+function numToLE(n,b){ const a=new Uint8Array(b); for(let i=0;i<b;i++) a[i]=(n>>> (8*i))&0xFF; return a; }
+function concatU8(arrs){ let len=0; arrs.forEach(a=>len+=a.length); const out=new Uint8Array(len); let o=0; arrs.forEach(a=>{ out.set(a,o); o+=a.length; }); return out; }
+function zipStore(files){ const records=[]; let offset=0; const central=[]; for(const f of files){ const nameU8=strToU8(f.name); const data=f.data; const crc=crc32(data); const local=concatU8([strToU8("PK\x03\x04"),numToLE(20,2),numToLE(0,2),numToLE(0,2),numToLE(0,2),numToLE(0,2),numToLE(crc,4),numToLE(data.length,4),numToLE(data.length,4),numToLE(nameU8.length,2),numToLE(0,2),nameU8,data]); records.push(local); const centralHdr=concatU8([strToU8("PK\x01\x02"),numToLE(20,2),numToLE(20,2),numToLE(0,2),numToLE(0,2),numToLE(0,2),numToLE(0,2),numToLE(crc,4),numToLE(data.length,4),numToLE(data.length,4),numToLE(nameU8.length,2),numToLE(0,2),numToLE(0,2),numToLE(0,2),numToLE(0,2),numToLE(0,4),numToLE(offset,4),nameU8]); central.push(centralHdr); offset+=local.length; } const centralDir=concatU8(central); const filesAll=concatU8(records); const end=concatU8([strToU8("PK\x05\x06"),numToLE(0,2),numToLE(0,2),numToLE(files.length,2),numToLE(files.length,2),numToLE(centralDir.length,4),numToLE(filesAll.length,4),numToLE(0,2)]); return new Blob([filesAll, centralDir, end], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}); }
+
+function buildXlsxBlob(){
+  const monday = parseYMDLocal(state.weekStart);
+  function esc(s){ return String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function c_inline(v){ return '<c t="inlineStr"><is><t>'+esc(v)+'</t></is></c>'; }
+
+  let cols=''; const leftW=[12,10,10,14,16,16,22];
+  for(let i=0;i<leftW.length;i++) cols += '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+leftW[i]+'" customWidth="1"/>';
+  for(let i=0;i<21;i++){ const idx=leftW.length+1+i; cols += '<col min="'+idx+'" max="'+idx+'" width="6" customWidth="1"/>'; }
+
+  const leftHeaders=["COMPAÑÍA","SECCIÓN","NFIL","DNI","APELLIDO1","APELLIDO2","NOMBRE"];
+  function colLetter(n){ let s=''; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); } return s; }
+
+  // Row 1
+  let rows = '<row r="1" ht="18">';
+  for(const h of leftHeaders) rows += c_inline(h);
+  for(let d=0; d<7; d++){ const dd=makeDate(monday.getFullYear(), monday.getMonth(), monday.getDate()+d); const ddm = "(" + String(dd.getDate()).padStart(2,"0") + MONTHS_ABBR[dd.getMonth()] + ")"; const title = DAYS[d] + ", " + ddm; rows += c_inline(title)+c_inline('')+c_inline(''); }
+  rows += '</row>';
+
+  // Row 2
+  rows += '<row r="2" ht="18">';
+  for(let i=0;i<leftHeaders.length;i++) rows += c_inline('');
+  for(let d=0; d<7; d++) rows += c_inline('DES')+c_inline('COM')+c_inline('CEN');
+  rows += '</row>';
+
+  // Data
+  let r=3;
+  for(const p of state.data){
+    rows += '<row r="'+r+'">';
+    const leftVals=[p.COMPANIA||'', p.SECCION||'', String(p.NFIL||''), p.DNI||'', p.APELLIDO1||'', p.APELLIDO2||'', p.NOMBRE||''];
+    for(const v of leftVals) rows += c_inline(v);
+    for(let d=0; d<7; d++){ const des=p.marks[0][d]?'X':''; const com=p.marks[1][d]?'X':''; const cen=p.marks[2][d]?'X':''; rows += c_inline(des)+c_inline(com)+c_inline(cen); }
+    rows += '</row>'; r++;
+  }
+
+  const merges = []; for(let j=1;j<=leftHeaders.length;j++) merges.push(colLetter(j)+'1:'+colLetter(j)+'2');
+  let colStart=leftHeaders.length+1; for(let d=0; d<7; d++){ merges.push(colLetter(colStart)+'1:'+colLetter(colStart+2)+'1'); colStart+=3; }
+
+  const sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<cols>'+cols+'</cols><sheetData>'+rows+'</sheetData>' +
+    '<mergeCells count="'+merges.length+'">'+merges.map(m=>'<mergeCell ref="'+m+'"/>').join('')+'</mergeCells>' +
+    '</worksheet>';
+
+  const workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+    '<sheets><sheet name="COMIDAS 1ª" sheetId="1" r:id="rId1"/></sheets></workbook>';
+
+  const rels_workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+    '</Relationships>';
+
+  const rels_root = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+    '</Relationships>';
+
+  const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+    '</Types>';
+
+  const files = [
+    {name:'[Content_Types].xml', data: strToU8(contentTypes)},
+    {name:'_rels/.rels', data: strToU8(rels_root)},
+    {name:'xl/workbook.xml', data: strToU8(workbook)},
+    {name:'xl/_rels/workbook.xml.rels', data: strToU8(rels_workbook)},
+    {name:'xl/worksheets/sheet1.xml', data: strToU8(sheet)},
+  ];
+
+  return zipStore(files);
+}
+
+// === Inicialización ===
+(function init(){
+  // Semana actual por defecto
+  state.weekStart = ymdLocal(toMonday(new Date()));
+  state.data = loadWeekData(state.weekStart);
+
+  buildHead();
+  buildBody();
+
+  // Cambiar semana desde el desplegable: cada semana su lista independiente
+  document.getElementById("weekSelect").addEventListener("change", (e)=>{
+    state.weekStart = e.target.value;
+    state.data = loadWeekData(state.weekStart);
+    buildHead();
+    buildBody();
+  });
+
+  // Botones
+  document.getElementById("btnSave").addEventListener("click", ()=>{
+    saveWeekData(state.weekStart, state.data);
+    const json=JSON.stringify({weekStart: state.weekStart, data: state.data}, null, 2);
+    const blob=new Blob([json],{type:"application/json"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="turnos_semana_"+state.weekStart+".json";
+    document.body.appendChild(a); a.click(); setTimeout(()=>document.body.removeChild(a),0);
+  });
+  document.getElementById("btnLoad").addEventListener("click", ()=>{
+    const inp=document.createElement("input"); inp.type="file"; inp.accept=".json,application/json";
+    inp.addEventListener("change", ()=>{
+      const f=inp.files?.[0]; if(!f) return; const r=new FileReader();
+      r.onload=(e)=>{ try{
+          const parsed=JSON.parse(String(e.target?.result||"{}"));
+          if(parsed && parsed.weekStart && parsed.data){
+            state.weekStart=parsed.weekStart;
+            state.data=parsed.data;
+            saveWeekData(state.weekStart, state.data);
+            buildHead(); buildBody();
+          }else if(parsed && parsed.data){
+            state.data=parsed.data; saveWeekData(state.weekStart, state.data); buildBody();
+          }else{ alert("JSON no válido"); }
+        }catch(_){ alert("JSON no válido"); } };
+      r.readAsText(f);
+    }); inp.click();
+  });
+  document.getElementById("btnXLSX").addEventListener("click", ()=>{
+    const blob=buildXlsxBlob();
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="LISTADO_igual_"+state.weekStart+".xlsx";
+    document.body.appendChild(a); a.click(); setTimeout(()=>document.body.removeChild(a),0);
+  });
+  document.getElementById("btnClear").addEventListener("click", ()=>{
+    if(!confirm("Esto desmarca todo lo NO obligatorio de ESTA semana. ¿Continuar?")) return;
+    state.data = defaultWeekData();
+    saveWeekData(state.weekStart, state.data);
+    buildBody();
+  });
+})();
+</script>
+</body>
+</html>
